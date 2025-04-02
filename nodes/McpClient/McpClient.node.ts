@@ -7,7 +7,8 @@ import {
 	NodeOperationError,
 } from 'n8n-workflow';
 // import { DynamicStructuredTool } from '@langchain/core/tools'; // No longer needed
-// import { z } from 'zod'; // No longer needed
+import { z } from 'zod';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -16,72 +17,6 @@ import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 declare const process: {
 	env: Record<string, string | undefined>;
 };
-// Helper function to recursively ensure 'type' is defined in a schema object
-function ensureSchemaTypes(schemaPart: any): any {
-	if (typeof schemaPart !== 'object' || schemaPart === null) {
-		return schemaPart;
-	}
-
-	// Ensure the current level has a type if it represents a parameter/property
-	// We check for 'properties' or 'items' as indicators, or if it's not the top-level schema itself.
-	// This is heuristic; adjust if needed based on actual schema structures.
-	if (
-		!schemaPart.type &&
-		(schemaPart.properties ||
-			schemaPart.items ||
-			Object.keys(schemaPart).length > 0) /* crude check for non-empty object */
-	) {
-		if (schemaPart.properties) {
-			schemaPart.type = 'object';
-		} else if (schemaPart.items) {
-			schemaPart.type = 'array';
-		} else {
-			// Default guess if type is missing but it seems like a property definition
-			// Avoid setting type on the root 'parameters' object if it lacks type initially
-			// This might need refinement based on Gemini's exact root schema expectations.
-			// For now, let's default properties to string if type is missing.
-			// schemaPart.type = 'string'; // Potentially too broad, let's be conservative
-		}
-	}
-
-	if (schemaPart.properties && typeof schemaPart.properties === 'object') {
-		// Ensure type is 'object' if properties exist
-		if (!schemaPart.type) schemaPart.type = 'object';
-
-		for (const key in schemaPart.properties) {
-			const property = schemaPart.properties[key];
-			if (typeof property === 'object' && property !== null) {
-				// Ensure the property itself has a type
-				if (!property.type) {
-					if (property.properties) {
-						property.type = 'object';
-					} else if (property.items) {
-						property.type = 'array';
-					} else {
-						// Default missing types within properties to string
-						property.type = 'string';
-					}
-				}
-				// Recurse if it's an object or array
-				if (property.type === 'object' || property.type === 'array') {
-					ensureSchemaTypes(property);
-				}
-			} else {
-				// Handle cases where property is not an object (should ideally have a type already)
-				// If not, maybe default to string? Or log a warning?
-				// For now, we assume valid basic types or objects.
-			}
-		}
-	}
-
-	if (schemaPart.items && typeof schemaPart.items === 'object') {
-		// Ensure type is 'array' if items exist
-		if (!schemaPart.type) schemaPart.type = 'array';
-		ensureSchemaTypes(schemaPart.items); // Recurse into array items schema
-	}
-
-	return schemaPart;
-}
 
 export class McpClient implements INodeType {
 	description: INodeTypeDescription = {
@@ -462,18 +397,15 @@ export class McpClient implements INodeType {
 					// The aiTools mapping (DynamicStructuredTool creation) is no longer needed
 					// as we are returning the raw sanitized schema directly.
 
-					// Ensure schema types and pass the modified schema back to the workflow
+					// Pass the original (sanitized) schema back to the workflow
 					returnData.push({
 						json: {
-							tools: sanitizedTools.map((tool: any) => {
-								// Ensure types are defined recursively within the schema
-								const finalSchema = tool.inputSchema ? ensureSchemaTypes(tool.inputSchema) : {};
-								return {
-									name: tool.name,
-									description: tool.description,
-									schema: finalSchema, // Use the schema processed by ensureSchemaTypes
-								};
-							}),
+							tools: sanitizedTools.map((tool: any) => ({
+								// Map over sanitizedTools
+								name: tool.name,
+								description: tool.description,
+								schema: tool.inputSchema || {}, // Use the full inputSchema
+							})),
 						},
 					});
 					break;
