@@ -6,8 +6,8 @@ import {
 	NodeConnectionType,
 	NodeOperationError,
 } from 'n8n-workflow';
-import { DynamicStructuredTool } from '@langchain/core/tools';
-import { z } from 'zod';
+// import { DynamicStructuredTool } from '@langchain/core/tools'; // No longer needed
+// import { z } from 'zod'; // No longer needed
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
@@ -362,7 +362,10 @@ export class McpClient implements INodeType {
 						: Object.values(rawTools?.tools || {});
 
 					if (!tools || !Array.isArray(tools)) {
-						throw new NodeOperationError(this.getNode(), 'Invalid tools data received from MCP client');
+						throw new NodeOperationError(
+							this.getNode(),
+							'Invalid tools data received from MCP client',
+						);
 					}
 
 					if (!tools.length) {
@@ -390,90 +393,17 @@ export class McpClient implements INodeType {
 						return tool; // Return original tool if no schema/properties
 					});
 
-					const aiTools = sanitizedTools.map((tool: any) => {
-						const paramSchema = tool.inputSchema?.properties
-							? z.object(
-									Object.entries(tool.inputSchema.properties).reduce(
-										(acc: any, [key, prop]: [string, any]) => {
-											let zodType: z.ZodType;
+					// The aiTools mapping (DynamicStructuredTool creation) is no longer needed
+					// as we are returning the raw sanitized schema directly.
 
-											switch (prop.type) {
-												case 'string':
-													zodType = z.string();
-													break;
-												case 'number':
-													zodType = z.number();
-													break;
-												case 'integer':
-													zodType = z.number().int();
-													break;
-												case 'boolean':
-													zodType = z.boolean();
-													break;
-												case 'array':
-													if (prop.items?.type === 'string') {
-														zodType = z.array(z.string());
-													} else if (prop.items?.type === 'number') {
-														zodType = z.array(z.number());
-													} else if (prop.items?.type === 'boolean') {
-														zodType = z.array(z.boolean());
-													} else {
-														zodType = z.array(z.any());
-													}
-													break;
-												case 'object':
-													zodType = z.record(z.string(), z.any());
-													break;
-												default:
-													zodType = z.any();
-											}
-
-											if (prop.description) {
-												zodType = zodType.describe(prop.description);
-											}
-
-											if (!tool.inputSchema?.required?.includes(key)) {
-												zodType = zodType.optional();
-											}
-
-											return {
-												...acc,
-												[key]: zodType,
-											};
-										},
-										{},
-									),
-							  )
-							: z.object({});
-
-						return new DynamicStructuredTool({
-							name: tool.name,
-							description: tool.description || `Execute the ${tool.name} tool`,
-							schema: paramSchema,
-							func: async (params) => {
-								try {
-									const result = await client.callTool({
-										name: tool.name,
-										arguments: params,
-									});
-
-									return typeof result === 'object' ? JSON.stringify(result) : String(result);
-								} catch (error) {
-									throw new NodeOperationError(
-										this.getNode(),
-										`Failed to execute ${tool.name}: ${(error as Error).message}`,
-									);
-								}
-							},
-						});
-					});
-
+					// Pass the original (sanitized) schema back to the workflow
 					returnData.push({
 						json: {
-							tools: aiTools.map((t: DynamicStructuredTool) => ({
-								name: t.name,
-								description: t.description,
-								schema: Object.keys(t.schema.shape || {}),
+							tools: sanitizedTools.map((tool: any) => ({
+								// Map over sanitizedTools
+								name: tool.name,
+								description: tool.description,
+								schema: tool.inputSchema || {}, // Use the full inputSchema
 							})),
 						},
 					});
