@@ -153,7 +153,7 @@ export class McpClient implements INodeType {
 			{
 				displayName: 'Tool Parameters',
 				name: 'toolParameters',
-				type: 'json',
+				type: 'string', // Changed from 'json' to 'string'
 				required: true,
 				displayOptions: {
 					show: {
@@ -161,7 +161,7 @@ export class McpClient implements INodeType {
 					},
 				},
 				default: '{}',
-				description: 'Parameters to pass to the tool in JSON format',
+				description: 'Parameters to pass to the tool as a JSON string',
 			},
 			{
 				displayName: 'Prompt Name',
