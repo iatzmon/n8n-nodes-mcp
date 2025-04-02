@@ -1,0 +1,1 @@
+analyze the README and source code in @/n8n-nodes-mcp and generate an llms.txt file in its folder explaining the structure of the repo going file by file and the architecture of this n8n custom node.

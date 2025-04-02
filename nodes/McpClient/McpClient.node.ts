@@ -361,11 +361,36 @@ export class McpClient implements INodeType {
 						? rawTools.tools
 						: Object.values(rawTools?.tools || {});
 
+					if (!tools || !Array.isArray(tools)) {
+						throw new NodeOperationError(this.getNode(), 'Invalid tools data received from MCP client');
+					}
+
 					if (!tools.length) {
 						throw new NodeOperationError(this.getNode(), 'No tools found from MCP client');
 					}
 
-					const aiTools = tools.map((tool: any) => {
+					// Sanitize tools: remove 'default' from inputSchema properties
+					const sanitizedTools = tools.map((tool: any) => {
+						if (tool.inputSchema && tool.inputSchema.properties) {
+							const sanitizedProperties: Record<string, any> = {};
+							for (const [key, prop] of Object.entries(tool.inputSchema.properties)) {
+								// Create a copy of the property object excluding 'default'
+								const { default: _, ...rest } = prop as any;
+								sanitizedProperties[key] = rest;
+							}
+							// Return a new tool object with the sanitized schema
+							return {
+								...tool,
+								inputSchema: {
+									...tool.inputSchema,
+									properties: sanitizedProperties,
+								},
+							};
+						}
+						return tool; // Return original tool if no schema/properties
+					});
+
+					const aiTools = sanitizedTools.map((tool: any) => {
 						const paramSchema = tool.inputSchema?.properties
 							? z.object(
 									Object.entries(tool.inputSchema.properties).reduce(
